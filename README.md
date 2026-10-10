@@ -10,6 +10,14 @@
 
 The project primarily focuses on detecting whether workers are wearing safety helmets. It also explores helmet color classification and zone-based verification to identify potential safety violations and notify responsible personnel.
 
+## Project Goals
+
+- Apply AI and Computer Vision to support workplace safety.
+- Develop and evaluate a safety helmet detection model.
+- Explore helmet color classification using OpenCV.
+- Verify helmet usage and color compliance based on area-specific safety requirements.
+- Integrate detection results with an automated alert notification system.
+
 
 ## Features
 
@@ -39,13 +47,25 @@ The proposed system follows four main steps:
 | OpenCV | Image processing and helmet color classification |
 | LINE Messaging API | Automated safety alert notifications |
 
-## Project Goals
+## Dataset
 
-- Apply AI and Computer Vision to support workplace safety.
-- Develop and evaluate a safety helmet detection model.
-- Explore helmet color classification using OpenCV.
-- Verify helmet usage and color compliance based on area-specific safety requirements.
-- Integrate detection results with an automated alert notification system.
+This project uses the **Safety Helmet Dataset** provided by Helmet TF on Roboflow Universe for training and evaluating the safety helmet detection model.
+
+| Information | Details |
+|---|---|
+| Dataset | [Safety Helmet Dataset](https://universe.roboflow.com/helmet-tf/safety-helmet-4mhdt) |
+| Author | Helmet TF |
+| Publisher | Roboflow Universe |
+| Published | April 2022 |
+| License | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| Accessed | October 10, 2026 |
+
+The dataset is used in accordance with the Creative Commons Attribution 4.0 International license. Credit is given to the original author, and any modifications made during dataset preparation will be documented.
+
+### Dataset Citation
+
+Helmet TF. (2022). *Safety Helmet Dataset*. Roboflow Universe. https://universe.roboflow.com/helmet-tf/safety-helmet-4mhdt
+
 
 ## Project Status
 
@@ -76,24 +96,7 @@ Responsible for integrating the AI model into the system, implementing helmet co
 1. [poommer](https://github.com/poommer)
 2. [nyxfelis](https://github.com/nyxfelis)
 
-## Dataset
 
-This project uses the **Safety Helmet Dataset** provided by Helmet TF on Roboflow Universe for training and evaluating the safety helmet detection model.
-
-| Information | Details |
-|---|---|
-| Dataset | [Safety Helmet Dataset](https://universe.roboflow.com/helmet-tf/safety-helmet-4mhdt) |
-| Author | Helmet TF |
-| Publisher | Roboflow Universe |
-| Published | April 2022 |
-| License | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
-| Accessed | October 10, 2026 |
-
-The dataset is used in accordance with the Creative Commons Attribution 4.0 International license. Credit is given to the original author, and any modifications made during dataset preparation will be documented.
-
-### Dataset Citation
-
-Helmet TF. (2022). *Safety Helmet Dataset*. Roboflow Universe. https://universe.roboflow.com/helmet-tf/safety-helmet-4mhdt
 
 ## License
 
