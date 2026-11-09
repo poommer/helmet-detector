@@ -1,0 +1,10 @@
+{
+  "location": {
+    "location_id": "LOC-001",
+    "building": "Warehouse A",
+    "floor": "Floor 1",
+    "zone": "Entrance Gate",
+    "description": "บริเวณทางเข้าโกดังสินค้า",
+    "safety_policy": "helmet_required"
+  }
+}

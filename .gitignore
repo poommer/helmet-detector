@@ -3,8 +3,8 @@ __pycache__/
 *.py[cod]
 
 # Virtual environment
-.venv/
-venv/
+.venv*/
+venv*/
 
 # Environment secrets
 .env
@@ -31,3 +31,5 @@ dist/
 
 # Generated data
 data/processed/
+
+model.pt

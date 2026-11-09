@@ -1,0 +1,12 @@
+{
+  "device": {
+    "device_id": "DEV-001",
+    "device_name": "Main Entrance Camera",
+    "device_type": "webcam",
+    "description": "กล้องจำลองบริเวณทางเข้าหลัก",
+    "status": "active",
+    "resolution": "640x480",
+    "fps": 4,
+    "location_id": "LOC-001"
+  }
+}
