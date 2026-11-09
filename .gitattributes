@@ -1,0 +1,2 @@
+Training[[:space:]]Model/*.pt filter=lfs diff=lfs merge=lfs -text
+Training[[:space:]]Model/model.pt filter=lfs diff=lfs merge=lfs -text
