@@ -14,7 +14,7 @@ def check():
     x = torch.randn(128, 128, device='cuda', requires_grad=True)
     (x @ x.T).square().mean().backward()
     torch.cuda.synchronize()
-    print('GPU forward/backward: PASS')
+    print('GPU forward/backward: PASS') 
 
 if __name__ == '__main__':
     check()
