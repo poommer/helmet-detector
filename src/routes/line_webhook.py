@@ -1,97 +1,58 @@
 # use Webhok to collect LINE User ID and response test message 
 
+import asyncio
 import base64
 import hashlib
 import hmac
 import json
 
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Header, Request, HTTPException
 
-from src.config import LINE_CHANNEL_SECRET
-from src.services.subscriber_service import (
-    add_subscriber,
-    remove_subscriber
-)
-from src.services.line_service import send_line_message
+from ..config import LINE_CHANNEL_SECRET
+from ..services.line_service import add_recipient, remove_recipient, reply_message
+router = APIRouter(prefix="/line", tags=["LINE"])
 
 
-router = APIRouter()
+def verify_signature(body: bytes, signature: str) -> bool:
+    # ตรวจลายเซ็นว่าคำขอมาจาก LINE จริง (HMAC-SHA256 ด้วย channel secret)
+    digest = hmac.new(LINE_CHANNEL_SECRET.encode(), body, hashlib.sha256).digest()
+    return hmac.compare_digest(base64.b64encode(digest).decode(), signature)
 
 
-def verify_line_signature(body: bytes, signature: str):
-    digest = hmac.new(
-        LINE_CHANNEL_SECRET.encode("utf-8"),
-        body,
-        hashlib.sha256
-    ).digest()
-
-    expected_signature = base64.b64encode(digest).decode("utf-8")
-
-    return hmac.compare_digest(
-        expected_signature,
-        signature
-    )
-
-
-@router.post("/webhook/line")
-async def line_webhook(request: Request):
-
+@router.post("/webhook")
+async def line_webhook(request: Request, x_line_signature: str = Header(...)):
     body = await request.body()
 
-    signature = request.headers.get("x-line-signature")
+    # ลายเซ็นไม่ถูกต้อง = ไม่ใช่ LINE ส่งมา ปฏิเสธ
+    if not LINE_CHANNEL_SECRET or not verify_signature(body, x_line_signature):
+        raise HTTPException(status_code=401, detail="Invalid signature")
 
-    if not signature or not verify_line_signature(body, signature):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid LINE signature"
-        )
+    payload = json.loads(body)
 
-    try:
-        data = json.loads(body)
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid JSON"
-        )
-
-    for event in data.get("events", []):
-
-        event_type = event.get("type")
-
+    for event in payload.get("events", []):
         source = event.get("source", {})
-        user_id = source.get("userId")
+        # ถ้ามาจากกลุ่มใช้ groupId, ถ้าแชทเดี่ยวใช้ userId
+        target_id = source.get("groupId") or source.get("roomId") or source.get("userId")
+        event_type = event.get("type")
+        reply_token = event.get("replyToken")
 
-        if not user_id:
-            continue
+        if event_type in ("follow", "join"):
+            # มีคนแอดบอท / เชิญบอทเข้ากลุ่ม -> ลงทะเบียนรับแจ้งเตือน
+            add_recipient(target_id)
+            await asyncio.to_thread(
+                reply_message, reply_token,
+                "✅ ลงทะเบียนรับแจ้งเตือน Heltect แล้ว",
+            )
 
-        # User adds LINE OA as a friend
-        if event_type == "follow":
+        elif event_type in ("unfollow", "leave"):
+            # มีคนบล็อกบอท / บอทออกจากกลุ่ม -> เลิกส่ง
+            remove_recipient(target_id)
 
-            add_subscriber(user_id)
-
-            print("New LINE subscriber:", user_id)
-
-        # User blocks LINE OA
-        elif event_type == "unfollow":
-
-            remove_subscriber(user_id)
-
-            print("LINE subscriber removed:", user_id)
-
-        # User sends a message
         elif event_type == "message":
+            # พิมพ์ "id" เพื่อดู ID ของตัวเอง/กลุ่ม (เอาไปใส่ LINE_TO ได้)
+            text = event.get("message", {}).get("text", "").strip().lower()
+            if text in ("id", "/id"):
+                await asyncio.to_thread(reply_message, reply_token, f"ID: {target_id}")
 
-            message = event.get("message", {})
-
-            if message.get("type") == "text":
-
-                await send_line_message(
-                    user_id,
-                    "ระบบ PPE Alert พร้อมใช้งานแล้ว"
-                )
-
-    return JSONResponse({
-        "status": "success"
-    })
-
+    # ต้องตอบ 200 เสมอ ไม่งั้น LINE จะถือว่า webhook พัง
+    return {"status": "ok"}
