@@ -1,5 +1,10 @@
-library ## 
-fastapi 
-uvicorn[standard] 
-httpx
+fastapi
+uvicorn[standard]
+python-multipart
 python-dotenv
+requests
+httpx
+ultralytics
+opencv-python
+numpy<2
+pytest
