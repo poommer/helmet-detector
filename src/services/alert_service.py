@@ -51,6 +51,9 @@ class AlertService:
         # Path ของ Mock Configuration
         self.data_dir = Path(__file__).resolve().parents[1] / "data"
 
+        # โฟลเดอร์เก็บภาพหลักฐานตอนแจ้งเตือน
+        self.snapshot_dir = self.data_dir / "snapshots"
+
     # ------------------------------------------
     # Load Mock Device & Location
     # ------------------------------------------
@@ -131,14 +134,42 @@ class AlertService:
         }
 
     # ------------------------------------------
+    # Snapshot (ภาพหลักฐาน)
+    # ------------------------------------------
+
+    def _delete_old_snapshots(self, keep_days=7):
+        # ลบภาพที่เก่ากว่า keep_days วัน (ภาพคนจริง ไม่ควรเก็บนานเกินจำเป็น)
+        cutoff = time.time() - keep_days * 24 * 3600
+        for path in self.snapshot_dir.glob("*.jpg"):
+            if path.stat().st_mtime < cutoff:
+                path.unlink(missing_ok=True)
+
+    def _save_snapshot(self, event, snapshot_jpeg):
+        # บันทึกภาพหลักฐาน (เฟรมที่มีกรอบตรวจจับ) ชื่อไฟล์ = event_id.jpg
+        if not snapshot_jpeg:
+            return None
+        try:
+            self.snapshot_dir.mkdir(parents=True, exist_ok=True)
+            filename = f"{event['event_id']}.jpg"
+            (self.snapshot_dir / filename).write_bytes(snapshot_jpeg)
+            self._delete_old_snapshots()
+            return filename
+        except OSError as err:
+            print(f"[AlertService] Cannot save snapshot: {err}")
+            return None
+
+    # ------------------------------------------
     # Send Event to LineClient
     # ------------------------------------------
 
-    def _dispatch_event(self, prediction, track_id):
+    def _dispatch_event(self, prediction, track_id, snapshot_jpeg=None):
         event = self._create_event(
             prediction,
             track_id,
         )
+
+        # เก็บภาพก่อนส่ง LINE เพื่อให้ LINE ดึงภาพได้ทันที
+        event["snapshot_file"] = self._save_snapshot(event, snapshot_jpeg)
 
         try:
             success = self.line_client.send_alert(event)
@@ -163,7 +194,8 @@ class AlertService:
     # Main Alert Processing
     # ------------------------------------------
 
-    def process(self, predictions):
+    def process(self, predictions, snapshot_jpeg=None):
+        # snapshot_jpeg = ภาพเฟรมปัจจุบัน (มีกรอบแล้ว) ใช้เป็นหลักฐานตอนแจ้งเตือน
         now = time.monotonic()
 
         self._cleanup_old_ids(now)
@@ -240,6 +272,7 @@ class AlertService:
             event, success = self._dispatch_event(
                 prediction,
                 track_id,
+                snapshot_jpeg,
             )
 
             new_alerts.append(event)
@@ -264,8 +297,12 @@ class AlertService:
             event, success = self._dispatch_event(
                 prediction,
                 None,
+                snapshot_jpeg,
             )
 
             new_alerts.append(event)
 
         return new_alerts
+
+
+

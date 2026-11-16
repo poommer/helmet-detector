@@ -33,4 +33,7 @@ dist/
 data/processed/
 
 # รายชื่อผู้รับ LINE ที่ลงทะเบียนผ่าน webhook
-src/data/recipients.json 
+src/data/recipients.json
+
+# ภาพหลักฐานจากกล้อง (ข้อมูลส่วนบุคคล ห้ามขึ้น GitHub)
+src/data/snapshots/

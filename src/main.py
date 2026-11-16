@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .config import ALERT_API_TOKEN, validate_config
+from .config import ALERT_API_TOKEN, SNAPSHOT_DIR, validate_config
 
 validate_config()  # ตรวจ .env ก่อน (ก่อนโหลดโมเดลที่ใช้เวลานาน)
 
@@ -31,6 +31,10 @@ if (FRONTEND_DIR / "static").is_dir():
         StaticFiles(directory=FRONTEND_DIR / "static"),
         name="static",
     )
+
+# เปิดให้ LINE ดึงภาพหลักฐานได้ที่ /snapshots/<event_id>.jpg
+SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/snapshots", StaticFiles(directory=SNAPSHOT_DIR), name="snapshots")
 
 # ลงทะเบียน API ย่อย
 app.include_router(detect_router)   # POST /predict
@@ -57,7 +61,6 @@ async def health():
 
 class HeltectAlert(BaseModel):
     # รูปแบบข้อมูลที่ระบบภายนอกต้องส่งมาที่ /api/alerts/ppe
-    person_name: str = "Unknown"
     violation: str
     confidence: float
     camera_id: str = "Camera-01"
@@ -72,16 +75,18 @@ async def create_ppe_alert(alert: HeltectAlert, x_alert_token: str = Header(...)
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     # สร้างข้อความแจ้งเตือน
+    # (ใช้รูปแบบเดียวกับข้อความจากกล้องใน line_client.py)
     message = (
-        "🚨 PPE SAFETY ALERT\n\n"
-        f"บุคคล: {alert.person_name}\n"
-        f"เหตุการณ์: {alert.violation}\n"
-        f"ความมั่นใจ: {alert.confidence:.2%}\n"
-        f"กล้อง: {alert.camera_id}\n"
-        f"เวลา: {alert.detected_at}"
+        "🚨 แจ้งเตือนความปลอดภัย\n"
+        "━━━━━━━━━━━━━━\n"
+        f"⚠️ เหตุการณ์: {alert.violation}\n"
+        f"📊 ความมั่นใจ: {alert.confidence:.0%}\n"
+        f"📷 กล้อง: {alert.camera_id}\n"
+        f"🕒 เวลา: {alert.detected_at}\n"
     )
     if alert.image_url:
-        message += f"\nภาพหลักฐาน: {alert.image_url}"
+        message += f"🖼️ ภาพหลักฐาน: {alert.image_url}\n"
+    message += "━━━━━━━━━━━━━━\nกรุณาตรวจสอบพื้นที่โดยด่วน"
 
     # ส่งหาผู้รับทุกคน
     result = await send_alert_to_all(message)

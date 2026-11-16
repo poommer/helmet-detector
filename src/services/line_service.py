@@ -13,7 +13,7 @@ PUSH_URL = "https://api.line.me/v2/bot/message/push"
 REPLY_URL = "https://api.line.me/v2/bot/message/reply"
 TIMEOUT = 5                       # วินาที กันระบบค้างถ้า LINE ตอบช้า
 
-_lock = threading.Lock()          # กันสองคำขอเขียนไฟล์รายชื่อพร้อมกัน
+_lock = threading.Lock()  # กันสองคำขอเขียนไฟล์รายชื่อพร้อมกัน
 
 
 def _headers():
@@ -24,10 +24,10 @@ def _headers():
     }
 
 
-# ---------- รายชื่อผู้รับ ----------
+# ---------- ระบบสำหรับจัดการรายชื่อผู้รับ ----------
 
 def _read_saved_ids():
-    # อ่าน ID ที่ลงทะเบียนผ่าน webhook จากไฟล์ (ไม่มีไฟล์ = ยังไม่มีใคร)
+    # อ่าน ID ที่ลงทะเบียนผ่าน webhook จากไฟล์ 
     try:
         return json.loads(RECIPIENTS_FILE.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
@@ -46,7 +46,7 @@ def load_recipients():
 
 
 def add_recipient(target_id):
-    # เพิ่มผู้รับใหม่ (เรียกตอนมีคนแอดบอท หรือเชิญบอทเข้ากลุ่ม)
+    # เพิ่มผู้รับใหม่ (เรียกตอนมีคนแอดบอท หรือ เชิญบอทเข้ากลุ่ม)
     if not target_id:
         return
     with _lock:
@@ -63,10 +63,10 @@ def remove_recipient(target_id):
         _write_saved_ids(ids)
 
 
-# ---------- การส่งข้อความ ----------
+# ---------- ระบบการส่งข้อความ ----------
 
 def push_message(to, text, retry_key=None):
-    # ส่งข้อความหา 1 ผู้รับ แล้วคืนผลเป็น dict
+    # ส่งข้อความหา 1 ผู้รับ แล้วคืนผลเป็น dict (messages = list ของข้อความ LINE)
     headers = _headers()
     if retry_key:
         headers["X-Line-Retry-Key"] = retry_key       # กันส่งซ้ำเวลา retry
@@ -99,8 +99,13 @@ def reply_message(reply_token, text):
         print(f"[line_service] reply ไม่สำเร็จ: {err}")
 
 
-def send_alert_to_all_sync(text, retry_key=None):
+def send_alert_to_all_sync(text, retry_key=None, messages=None):
     # ส่งข้อความหาผู้รับทุกคน (แบบ sync ใช้ในโค้ดที่ไม่ใช่ async)
+    # if ไม่ส่ง messages มา -> จะส่ง normal text 
+
+    if messages is None:
+        messages = [{"type": "text", "text": text}]
+
     recipients = load_recipients()
     if not recipients:
         return {"success": False, "sent": 0, "failed": 0, "results": [],
@@ -110,7 +115,7 @@ def send_alert_to_all_sync(text, retry_key=None):
     for to in recipients:
         # retry key ต้องไม่ซ้ำกันในแต่ละผู้รับ เลยสร้างจาก key หลัก + ID ผู้รับ
         key = str(uuid.uuid5(uuid.UUID(retry_key), to)) if retry_key else None
-        results.append(push_message(to, text, key))
+        results.append(push_message(to, messages, key))
 
     sent = sum(r["ok"] for r in results)
     for r in results:
