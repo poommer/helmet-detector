@@ -22,6 +22,13 @@ ALERT_API_TOKEN = os.getenv("ALERT_API_TOKEN", "")
 
 RECIPIENTS_FILE = BASE_DIR / "data" / "recipients.json"
 
+# URL สาธารณะ (https) ของเซิร์ฟเวอร์นี้ เช่น https://xxxx.ngrok-free.app
+# LINE ต้องดึงรูปจาก URL นี้ ถ้าไม่ตั้ง จะส่งแค่ข้อความ ไม่มีรูป
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
+
+# โฟลเดอร์เก็บรูปหลักฐานที่ส่งไป LINE (เปิดให้เข้าถึงผ่าน /static/alerts/...)
+ALERT_IMAGE_DIR = BASE_DIR / "frontend" / "static" / "alerts"
+
 def validate_config():
     required = {
         "LINE_CHANNEL_ACCESS_TOKEN": LINE_CHANNEL_ACCESS_TOKEN,

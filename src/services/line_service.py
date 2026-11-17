@@ -65,8 +65,15 @@ def remove_recipient(target_id):
 
 # ---------- การส่งข้อความ ----------
 
+def _to_messages(content):
+    # รับได้ทั้งข้อความธรรมดา (str) หรือ list ของ LINE message (ข้อความ + รูป)
+    if isinstance(content, str):
+        return [{"type": "text", "text": content}]
+    return content
+
+
 def push_message(to, text, retry_key=None):
-    # ส่งข้อความหา 1 ผู้รับ แล้วคืนผลเป็น dict
+    # ส่งข้อความหา 1 ผู้รับ แล้วคืนผลเป็น dict (text เป็น str หรือ list ของ message ก็ได้)
     headers = _headers()
     if retry_key:
         headers["X-Line-Retry-Key"] = retry_key       # กันส่งซ้ำเวลา retry
@@ -74,7 +81,7 @@ def push_message(to, text, retry_key=None):
         res = requests.post(
             PUSH_URL,
             headers=headers,
-            json={"to": to, "messages": [{"type": "text", "text": text}]},
+            json={"to": to, "messages": _to_messages(text)},
             timeout=TIMEOUT,
         )
     except requests.RequestException as err:
@@ -99,6 +106,17 @@ def reply_message(reply_token, text):
         print(f"[line_service] reply ไม่สำเร็จ: {err}")
 
 
+def _retry_key_for(retry_key, to):
+    # LINE ต้องการ retry key แบบ UUID ถ้า key หลักไม่ใช่ UUID ก็สร้างใหม่ให้แทนการ error
+    if not retry_key:
+        return None
+    try:
+        base = uuid.UUID(retry_key)
+    except ValueError:
+        base = uuid.uuid5(uuid.NAMESPACE_OID, retry_key)
+    return str(uuid.uuid5(base, to))
+
+
 def send_alert_to_all_sync(text, retry_key=None):
     # ส่งข้อความหาผู้รับทุกคน (แบบ sync ใช้ในโค้ดที่ไม่ใช่ async)
     recipients = load_recipients()
@@ -109,7 +127,7 @@ def send_alert_to_all_sync(text, retry_key=None):
     results = []
     for to in recipients:
         # retry key ต้องไม่ซ้ำกันในแต่ละผู้รับ เลยสร้างจาก key หลัก + ID ผู้รับ
-        key = str(uuid.uuid5(uuid.UUID(retry_key), to)) if retry_key else None
+        key = _retry_key_for(retry_key, to)
         results.append(push_message(to, text, key))
 
     sent = sum(r["ok"] for r in results)

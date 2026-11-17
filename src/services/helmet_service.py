@@ -18,7 +18,8 @@ class HelmetService:
 
         # 2. Alert Processing
         alerts = self.alert_service.process(
-            result["predictions"]
+            result["predictions"],
+            image_base64=result.get("annotated_image_base64"),
         )
 
         # 3. Return API Response

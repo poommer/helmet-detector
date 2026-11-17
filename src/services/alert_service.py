@@ -1,3 +1,4 @@
+import base64
 import json
 import time
 
@@ -6,6 +7,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from ..integrations.line_client import LineClient
+from ..config import ALERT_IMAGE_DIR
 
 
 VIOLATION_CLASSES = {
@@ -104,14 +106,28 @@ class AlertService:
     # Create Alert Event
     # ------------------------------------------
 
-    def _create_event(self, prediction, track_id):
+    def _save_image(self, event_id, image_base64):
+        # บันทึกภาพที่มีกรอบตรวจจับเป็นไฟล์ jpg เพื่อให้ LINE ดึงไปแสดง
+        if not image_base64:
+            return None
+        try:
+            ALERT_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+            filename = f"{event_id}.jpg"
+            (ALERT_IMAGE_DIR / filename).write_bytes(base64.b64decode(image_base64))
+            return filename
+        except (OSError, ValueError) as err:
+            print(f"[AlertService] Cannot save alert image: {err}")
+            return None
+
+    def _create_event(self, prediction, track_id, image_base64=None):
         context = self._get_context()
+        event_id = str(uuid4())
 
         class_name = prediction.get("class")
         confidence = prediction.get("confidence", 0.0)
 
         return {
-            "event_id": str(uuid4()),
+            "event_id": event_id,
             "event_type": "helmet_violation",
             "occurred_at": datetime.now(timezone.utc).isoformat(),
 
@@ -128,16 +144,20 @@ class AlertService:
 
             "device": context["device"],
             "location": context["location"],
+
+            # ชื่อไฟล์รูปหลักฐาน (None = ไม่มีรูป)
+            "image_file": self._save_image(event_id, image_base64),
         }
 
     # ------------------------------------------
     # Send Event to LineClient
     # ------------------------------------------
 
-    def _dispatch_event(self, prediction, track_id):
+    def _dispatch_event(self, prediction, track_id, image_base64=None):
         event = self._create_event(
             prediction,
             track_id,
+            image_base64,
         )
 
         try:
@@ -163,7 +183,7 @@ class AlertService:
     # Main Alert Processing
     # ------------------------------------------
 
-    def process(self, predictions):
+    def process(self, predictions, image_base64=None):
         now = time.monotonic()
 
         self._cleanup_old_ids(now)
@@ -240,6 +260,7 @@ class AlertService:
             event, success = self._dispatch_event(
                 prediction,
                 track_id,
+                image_base64,
             )
 
             new_alerts.append(event)
@@ -264,6 +285,7 @@ class AlertService:
             event, success = self._dispatch_event(
                 prediction,
                 None,
+                image_base64,
             )
 
             new_alerts.append(event)

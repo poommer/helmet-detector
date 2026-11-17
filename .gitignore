@@ -34,3 +34,5 @@ data/processed/
 
 # รายชื่อผู้รับ LINE ที่ลงทะเบียนผ่าน webhook
 src/data/recipients.json 
+# Alert evidence images sent to LINE
+src/frontend/static/alerts/

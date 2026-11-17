@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .config import ALERT_API_TOKEN, validate_config
+from .config import ALERT_API_TOKEN, ALERT_IMAGE_DIR, validate_config
 
 validate_config()  # ตรวจ .env ก่อน (ก่อนโหลดโมเดลที่ใช้เวลานาน)
 
@@ -24,13 +24,13 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# ให้บริการ CSS/JS เฉพาะเมื่อมีโฟลเดอร์ static (ไม่มีแล้วจะ error)
-if (FRONTEND_DIR / "static").is_dir():
-    app.mount(
-        "/static",
-        StaticFiles(directory=FRONTEND_DIR / "static"),
-        name="static",
-    )
+# ให้บริการไฟล์ static + รูปหลักฐานที่ส่งไป LINE (สร้างโฟลเดอร์ให้ถ้ายังไม่มี)
+ALERT_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+app.mount(
+    "/static",
+    StaticFiles(directory=FRONTEND_DIR / "static"),
+    name="static",
+)
 
 # ลงทะเบียน API ย่อย
 app.include_router(detect_router)   # POST /predict
