@@ -1,4 +1,6 @@
+# คำสั่งเปิดเซิร์ฟเวอร์: รันด้วย  python -m src  จาก root ของ repo
 import uvicorn
+
 from .main import app
 
 if __name__ == "__main__":
