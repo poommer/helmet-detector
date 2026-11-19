@@ -67,6 +67,17 @@ The dataset is used in accordance with the Creative Commons Attribution 4.0 Inte
 Helmet TF. (2022). *Safety Helmet Dataset*. Roboflow Universe. https://universe.roboflow.com/helmet-tf/safety-helmet-4mhdt
 
 
+## Setup
+
+The model file `Training Model/model.pt` is stored with **Git LFS**. Install [git-lfs](https://git-lfs.com), then pull the real model file:
+
+```bash
+git lfs install
+git lfs pull
+```
+
+Without this step you only get a small pointer file and the server will not start.
+
 ## Project Status
 
 🚧 **In Development**

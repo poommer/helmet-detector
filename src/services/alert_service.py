@@ -1,6 +1,9 @@
 import base64
 import json
+import threading
 import time
+
+from concurrent.futures import ThreadPoolExecutor
 
 from pathlib import Path
 from datetime import datetime, timezone
@@ -30,6 +33,7 @@ class AlertService:
         expire_seconds=300,
         retry_seconds=15,
         fallback_cooldown=15,
+        image_keep_days=7,
     ):
         self.line_client = line_client or LineClient()
 
@@ -49,6 +53,22 @@ class AlertService:
 
         # Fallback สำหรับกรณีไม่มี Track ID
         self.last_fallback_attempt = 0.0
+
+        # Track ID ที่กำลังส่ง LINE อยู่ (ยังไม่รู้ผล) กันส่งซ้ำระหว่างรอ
+        self.pending_ids = set()
+
+        # ส่ง LINE ใน thread แยก เพื่อไม่ให้ /predict (และภาพจากกล้อง) ค้างรอ LINE ตอบ
+        self._executor = ThreadPoolExecutor(
+            max_workers=2,
+            thread_name_prefix="line-alert",
+        )
+
+        # กันหลาย thread แก้ข้อมูลสถานะพร้อมกัน (thread ส่ง LINE กับ thread ตรวจเฟรม)
+        self._lock = threading.Lock()
+
+        # ลบรูปหลักฐานที่เก่ากว่ากี่วัน (เช็กอย่างมากชั่วโมงละครั้ง)
+        self.image_keep_seconds = image_keep_days * 24 * 60 * 60
+        self._last_image_cleanup = None
 
         # Path ของ Mock Configuration
         self.data_dir = Path(__file__).resolve().parents[1] / "data"
@@ -102,6 +122,35 @@ class AlertService:
             self.violation_streak.pop(track_id, None)
             self.last_attempt_by_id.pop(track_id, None)
 
+        # ID ที่เคยส่งไม่สำเร็จแล้วหายไปจากกล้องนาน ๆ ก็ลบทิ้ง ไม่ให้ค้างใน memory
+        stale = [
+            track_id
+            for track_id, timestamp in self.last_attempt_by_id.items()
+            if now - timestamp >= self.expire_seconds
+            and track_id not in self.pending_ids
+        ]
+
+        for track_id in stale:
+            self.last_attempt_by_id.pop(track_id, None)
+
+    def _cleanup_old_images(self):
+        # ลบรูปหลักฐานเก่า ไม่ให้โฟลเดอร์ static/alerts โตไปเรื่อย ๆ
+        now = time.monotonic()
+        if (
+            self._last_image_cleanup is not None
+            and now - self._last_image_cleanup < 60 * 60
+        ):
+            return
+        self._last_image_cleanup = now
+
+        cutoff = time.time() - self.image_keep_seconds
+        try:
+            for path in ALERT_IMAGE_DIR.glob("*.jpg"):
+                if path.stat().st_mtime < cutoff:
+                    path.unlink(missing_ok=True)
+        except OSError as err:
+            print(f"[AlertService] Cannot clean old images: {err}")
+
     # ------------------------------------------
     # Create Alert Event
     # ------------------------------------------
@@ -114,6 +163,7 @@ class AlertService:
             ALERT_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
             filename = f"{event_id}.jpg"
             (ALERT_IMAGE_DIR / filename).write_bytes(base64.b64decode(image_base64))
+            self._cleanup_old_images()
             return filename
         except (OSError, ValueError) as err:
             print(f"[AlertService] Cannot save alert image: {err}")
@@ -154,11 +204,24 @@ class AlertService:
     # ------------------------------------------
 
     def _dispatch_event(self, prediction, track_id, image_base64=None):
+        # สร้าง event แล้วส่ง LINE ใน background ทันที ไม่รอผล
+        # (ผลการส่งจะไปอัปเดต notified_ids ใน _send_in_background)
         event = self._create_event(
             prediction,
             track_id,
             image_base64,
         )
+        event["delivery_status"] = "pending"
+
+        if track_id is not None:
+            self.pending_ids.add(track_id)
+
+        self._executor.submit(self._send_in_background, event)
+
+        return event
+
+    def _send_in_background(self, event):
+        track_id = event.get("track_id")
 
         try:
             success = self.line_client.send_alert(event)
@@ -167,23 +230,31 @@ class AlertService:
             print(f"[AlertService] LINE client error: {err}")
             success = False
 
-        event["delivery_status"] = (
-            "sent" if success else "failed"
-        )
-
         if not success:
             print(
                 f"[AlertService] Delivery failed: "
                 f"{event['event_id']}"
             )
 
-        return event, success
+        with self._lock:
+            if track_id is None:
+                return
+
+            self.pending_ids.discard(track_id)
+
+            if success:
+                self.notified_ids[track_id] = time.monotonic()
+                self.last_attempt_by_id.pop(track_id, None)
 
     # ------------------------------------------
     # Main Alert Processing
     # ------------------------------------------
 
     def process(self, predictions, image_base64=None):
+        with self._lock:
+            return self._process(predictions, image_base64)
+
+    def _process(self, predictions, image_base64=None):
         now = time.monotonic()
 
         self._cleanup_old_ids(now)
@@ -234,8 +305,8 @@ class AlertService:
 
         for track_id, prediction in current_violations.items():
 
-            # เคยแจ้งเตือนสำเร็จแล้วและยังไม่หมดอายุ
-            if track_id in self.notified_ids:
+            # เคยแจ้งเตือนสำเร็จแล้ว (ยังไม่หมดอายุ) หรือกำลังส่งอยู่
+            if track_id in self.notified_ids or track_id in self.pending_ids:
                 continue
 
             self.violation_streak[track_id] = min(
@@ -257,17 +328,13 @@ class AlertService:
 
             self.last_attempt_by_id[track_id] = now
 
-            event, success = self._dispatch_event(
+            event = self._dispatch_event(
                 prediction,
                 track_id,
                 image_base64,
             )
 
             new_alerts.append(event)
-
-            if success:
-                self.notified_ids[track_id] = now
-                self.last_attempt_by_id.pop(track_id, None)
 
         # --------------------------------------
         # Process Violations Without Track ID
@@ -282,7 +349,7 @@ class AlertService:
 
             self.last_fallback_attempt = now
 
-            event, success = self._dispatch_event(
+            event = self._dispatch_event(
                 prediction,
                 None,
                 image_base64,

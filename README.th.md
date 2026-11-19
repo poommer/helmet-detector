@@ -67,6 +67,17 @@
 
 Helmet TF. (2022). *Safety Helmet Dataset*. Roboflow Universe. https://universe.roboflow.com/helmet-tf/safety-helmet-4mhdt
 
+## การติดตั้ง (Setup)
+
+ไฟล์โมเดล `Training Model/model.pt` เก็บด้วย **Git LFS** ต้องติดตั้ง [git-lfs](https://git-lfs.com) ก่อน แล้วดึงไฟล์โมเดลจริงลงมา:
+
+```bash
+git lfs install
+git lfs pull
+```
+
+ถ้าไม่ทำขั้นตอนนี้ จะได้แค่ไฟล์ pointer ขนาดเล็ก และระบบจะเปิดไม่ขึ้น
+
 ## สถานะโครงการ (Project Status)
 
 🚧 **กำลังพัฒนา (In Development)**
