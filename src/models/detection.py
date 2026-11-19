@@ -1,5 +1,5 @@
 """
-ไฟล์: src/detection.py
+ไฟล์: src/models/detection.py
 อัปเกรดระบบ Object Tracking (ByteTrack) และจำแนกกลุ่มคลาสหมวกนิรภัยทั้ง 8 คลาส
 """
 
@@ -32,6 +32,14 @@ class YOLODetector:
         self.model_path = Path(model_path)
         if not self.model_path.exists():
             raise FileNotFoundError(f"ไม่พบไฟล์โมเดลที่: {self.model_path}")
+
+        # model.pt เก็บด้วย Git LFS ถ้า clone โดยไม่มี git-lfs จะได้แค่ไฟล์ pointer เล็ก ๆ
+        with self.model_path.open("rb") as file:
+            if file.read(40).startswith(b"version https://git-lfs"):
+                raise RuntimeError(
+                    f"{self.model_path} เป็นแค่ไฟล์ pointer ของ Git LFS ยังไม่ใช่โมเดลจริง\n"
+                    "ให้รันที่โฟลเดอร์ repo:  git lfs install && git lfs pull"
+                )
 
         if torch.cuda.is_available():
             self.device = "cuda"

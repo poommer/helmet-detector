@@ -1,4 +1,5 @@
 from fastapi import APIRouter, File, UploadFile, Query
+from fastapi.concurrency import run_in_threadpool
 
 from ..services.helmet_service import HelmetService
 
@@ -14,9 +15,12 @@ async def predict_frame(
 ):
     image_bytes = await file.read()
 
-    result = helmet_service.process_frame(
+    # YOLO ใช้เวลานาน ให้รันใน threadpool จะได้ไม่บล็อกเซิร์ฟเวอร์ทั้งตัว
+    # (ระหว่างนี้ /health, /line/webhook ยังตอบได้ตามปกติ)
+    result = await run_in_threadpool(
+        helmet_service.process_frame,
         image_bytes,
-        conf
+        conf,
     )
 
     return result
