@@ -15,13 +15,21 @@ if ! command -v ngrok >/dev/null 2>&1; then
 fi
 
 # อ่านค่าจาก .env
-read_env() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '[:space:]'; }
+# รองรับทั้ง  KEY=value,  KEY = value,  export KEY=value  และค่าที่มีเครื่องหมายคำพูด
+read_env() { grep -E "^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=" .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '[:space:]'; }
+
+if [ ! -f .env ]; then
+  echo "❌ ไม่พบไฟล์ .env ในโฟลเดอร์ $(pwd)"
+  exit 1
+fi
 NGROK_AUTHTOKEN=$(read_env NGROK_AUTHTOKEN)
 NGROK_DOMAIN=$(read_env NGROK_DOMAIN)
 NGROK_DOMAIN=${NGROK_DOMAIN:-stapling-mandate-absolute.ngrok-free.dev}
 
 if [ -z "$NGROK_AUTHTOKEN" ]; then
-  echo "❌ ยังไม่มี NGROK_AUTHTOKEN ใน .env"
+  echo "❌ ยังไม่มี NGROK_AUTHTOKEN ใน .env ($(pwd)/.env)"
+  echo "   เพิ่มบรรทัดนี้แล้วกด Cmd + S เพื่อเซฟ:"
+  echo "   NGROK_AUTHTOKEN=โทเคนของเพื่อน"
   exit 1
 fi
 
