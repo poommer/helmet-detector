@@ -64,6 +64,13 @@
     .preview-stage > img { display: block; width: 100%; height: 100%; object-fit: contain; }
     .preview-stage > video, .preview-stage > canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
     .preview-stage > canvas { pointer-events: none; }
+    /* กลับด้านภาพกล้องแบบกระจก (กรอบตรวจจับคำนวณตำแหน่งใหม่ในโค้ด ตัวหนังสือจะได้ไม่กลับ) */
+    .preview-stage.mirror > video { transform: scaleX(-1); }
+    /* กรอบกะพริบแดงตอนเจอคนฝ่าฝืน */
+    .preview-stage.alarm { box-shadow: 0 0 0 4px #f0645d, 0 0 28px rgba(240, 100, 93, .55); animation: alarm-flash .5s ease-in-out 3; }
+    @keyframes alarm-flash { 50% { box-shadow: 0 0 0 4px transparent, 0 0 0 transparent; } }
+    .toggle { display: inline-flex; align-items: center; gap: 6px; color: #596a63; font-size: 11px; cursor: pointer; user-select: none; }
+    .toggle input { accent-color: #4e7b51; }
     .empty-state { display: grid; justify-items: center; padding: 28px; text-align: center; }
     .empty-icon { width: 60px; height: 60px; display: grid; place-items: center; border: 1px solid #dce6dc; border-radius: 19px; background: #fff; color: #477663; box-shadow: 0 6px 18px rgba(25,44,41,.06); }
     .empty-title { margin: 16px 0 5px; font-size: 15px; font-weight: 750; }
@@ -204,7 +211,7 @@
           <span class="live-badge" id="liveBadge"><span class="live-pulse"></span><span id="liveBadgeText">พร้อมเริ่ม</span></span>
         </div>
 
-        <div class="preview-stage" id="previewStage">
+        <div class="preview-stage mirror" id="previewStage">
           <img id="preview" alt="ภาพตัวอย่างพร้อมกรอบผลตรวจจับ" hidden>
           <video id="video" autoplay playsinline muted hidden></video>
           <canvas id="canvas" hidden></canvas>
@@ -230,6 +237,8 @@
           <button class="button button-secondary" id="stopCameraButton" type="button" onclick="stopCamera()" disabled>หยุดกล้อง</button>
           <div class="file-info" id="fileInfo" hidden><strong id="fileName"></strong><span id="fileSize"></span></div>
           <button class="button button-quiet" id="clearFileButton" type="button" onclick="clearSelectedFile()" hidden>ล้างภาพ</button>
+          <label class="toggle"><input id="soundToggle" type="checkbox" checked> 🔊 เสียงเตือน</label>
+          <label class="toggle"><input id="mirrorToggle" type="checkbox" checked> 🪞 กลับด้านกล้อง</label>
           <div class="confidence">
             <label for="confSlider">ความมั่นใจขั้นต่ำ</label>
             <input id="confSlider" type="range" min="10" max="95" value="45">
@@ -325,6 +334,76 @@
     let cameraStream = null;
     let cameraTimer = null;
     let cameraBusy = false;
+
+    // ---------- เสียงเตือน + กลับด้านกล้อง ----------
+    // เพลง: วางไฟล์ไว้ที่ src/frontend/static/sounds/alert.mp3
+    //   เล่นต่อเนื่องตอนเจอคนไม่ผ่านเงื่อนไข และหยุดเมื่อไม่เจอแล้ว 2 วินาที
+    // ถ้าไม่มีไฟล์ จะใช้เสียงไซเรนที่สร้างจากโค้ดแทน
+    const SIREN_COOLDOWN_MS = 3000;
+    const SONG_STOP_AFTER_MS = 2000;
+    const soundToggle = document.getElementById('soundToggle');
+    const mirrorToggle = document.getElementById('mirrorToggle');
+    const alertSong = new Audio('/static/sounds/alert.mp3');
+    alertSong.loop = true;
+    alertSong.preload = 'auto';
+    let hasAlertSong = false;
+    alertSong.addEventListener('canplaythrough', () => { hasAlertSong = true; }, { once: true });
+    alertSong.addEventListener('error', () => { hasAlertSong = false; });
+    alertSong.load();
+    let audioCtx = null;
+    let lastSirenAt = 0;
+    let lastDeniedAt = 0;
+
+    mirrorToggle.addEventListener('change', () => {
+      previewStage.classList.toggle('mirror', mirrorToggle.checked);
+    });
+
+    function unlockAudio() {
+      // เบราว์เซอร์ให้เล่นเสียงได้หลังผู้ใช้กดปุ่มเท่านั้น เลยเตรียมไว้ตอนกด "เปิดกล้อง"
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      alertSong.muted = true;
+      alertSong.play()
+        .then(() => { alertSong.pause(); alertSong.currentTime = 0; })
+        .catch(() => {})
+        .finally(() => { alertSong.muted = false; });
+    }
+
+    function playSiren() {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'square';
+      for (let i = 0; i < 4; i++) osc.frequency.setValueAtTime(i % 2 ? 660 : 990, now + i * 0.3);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.15, now + 0.02);
+      gain.gain.setValueAtTime(0.15, now + 1.15);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 1.2);
+    }
+
+    function handleAlarm(denied) {
+      // เรียกทุกเฟรมจากกล้อง
+      const now = Date.now();
+      if (denied > 0) {
+        lastDeniedAt = now;
+        previewStage.classList.remove('alarm');
+        void previewStage.offsetWidth;       // รีเซ็ตแอนิเมชันให้กะพริบใหม่
+        previewStage.classList.add('alarm');
+      }
+      const soundOn = soundToggle.checked;
+      if (hasAlertSong) {
+        const shouldPlay = soundOn && cameraStream && now - lastDeniedAt < SONG_STOP_AFTER_MS;
+        if (shouldPlay && alertSong.paused) alertSong.play().catch(() => {});
+        else if (!shouldPlay && !alertSong.paused) alertSong.pause();
+      } else if (soundOn && denied > 0 && now - lastSirenAt >= SIREN_COOLDOWN_MS) {
+        lastSirenAt = now;
+        playSiren();
+      }
+    }
 
     function setMessage(message, state = 'idle') {
       statusText.textContent = message;
@@ -437,6 +516,7 @@
     });
 
     async function startCamera() {
+      unlockAudio();
       stopCamera(false);
       selectedFile = null;
       fileInput.value = '';
@@ -474,6 +554,8 @@
     function stopCamera(updateStatus = true) {
       if (cameraTimer) clearInterval(cameraTimer);
       cameraTimer = null;
+      alertSong.pause();
+      previewStage.classList.remove('alarm');
       if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
       cameraStream = null;
       video.pause();
@@ -555,8 +637,12 @@
     function drawCameraDetections(predictions) {
       context.clearRect(0, 0, canvas.width, canvas.height);
       predictions.forEach(prediction => {
-        const [x1, y1, x2, y2] = prediction.bbox_xyxy || [];
+        let [x1, y1, x2, y2] = prediction.bbox_xyxy || [];
         if (![x1, y1, x2, y2].every(Number.isFinite)) return;
+        if (mirrorToggle.checked) {
+          // ภาพกล้องกลับด้านแบบกระจก กรอบก็ต้องย้ายฝั่งตาม
+          [x1, x2] = [canvas.width - x2, canvas.width - x1];
+        }
         const color = prediction.access_status === 'allowed' ? '#35bd79'
           : prediction.access_status === 'denied' ? '#f0645d' : '#f0bd55';
         context.strokeStyle = color;
@@ -581,6 +667,7 @@
       const counts = updateResults(data);
       if (mode === 'camera') {
         drawCameraDetections(data.predictions || []);
+        handleAlarm(counts.denied);
       } else {
         releasePreviewUrl();
         preview.src = `data:image/jpeg;base64,${data.annotated_image_base64}`;
