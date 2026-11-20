@@ -1,0 +1,21 @@
+{
+  "policy_id": "POL-LOC-001",
+  "location_id": "LOC-001",
+  "area_name": "Warehouse A · Floor 1 · Entrance Gate",
+  "mode": "assessment_only",
+  "allowed_helmet_colors": [
+    "blue",
+    "white",
+    "yellow"
+  ],
+  "minimum_confidence": 0.45,
+  "conditions": [
+    "helmet_required",
+    "allowed_colors_only",
+    "violation_classes_blocked",
+    "unknown_color_requires_review",
+    "no_helmet_requires_review",
+    "person_helmet_match_required"
+  ],
+  "note": "สีที่อนุญาตเป็นค่าตัวอย่าง โปรดปรับให้ตรงกับระเบียบของพื้นที่จริงก่อนใช้งาน ระบบประเมินจากภาพและยังไม่ควบคุมประตูจริง"
+}

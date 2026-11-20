@@ -3,130 +3,629 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Helmet Detector - YOLO11x Live Camera</title>
+  <meta name="theme-color" content="#102e2a">
+  <title>Heltect · ตรวจสอบความปลอดภัย</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 24px; text-align: center; }
-    .container { max-width: 780px; margin: 0 auto; background: #1e293b; padding: 20px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
-    .badges { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
-    .badge { padding: 6px 14px; border-radius: 999px; background: #0f172a; }
-    .badge.safe { color: #4ade80; border: 1px solid #22c55e55; }
-    .badge.violation { color: #f87171; border: 1px solid #ef444455; }
-    .stage { position: relative; width: 100%; max-width: 640px; margin: 12px auto; background: #020617; border-radius: 12px; overflow: hidden; aspect-ratio: 4/3; }
-    video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
-    .controls { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; align-items: center; margin-top: 14px; }
-    button { padding: 10px 18px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; background: #4f46e5; color: white; font-size: 14px; }
-    button.stop { background: #e11d48; }
-    .status { font-size: 14px; color: #94a3b8; margin-top: 10px; }
+    :root {
+      color-scheme: light;
+      --canvas: #f2f5f1;
+      --surface: #ffffff;
+      --surface-soft: #f7f9f6;
+      --ink: #192c29;
+      --muted: #687773;
+      --muted-soft: #94a19d;
+      --line: #e2e9e3;
+      --forest: #153c36;
+      --forest-deep: #102e2a;
+      --lime: #d4f36a;
+      --green: #18734f;
+      --green-soft: #eaf6ee;
+      --amber: #94600a;
+      --amber-soft: #fff5df;
+      --red: #b9433d;
+      --red-soft: #fff0ee;
+      --shadow: 0 18px 48px rgba(25, 44, 41, .065);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Thai", Tahoma, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { min-width: 320px; margin: 0; background: var(--canvas); color: var(--ink); }
+    button, input { font: inherit; }
+    button, label[for="imageFile"] { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, label[for="imageFile"]:focus-visible, input:focus-visible { outline: 3px solid #94c43d; outline-offset: 3px; }
+    .topbar { height: 76px; background: var(--forest-deep); color: #fff; }
+    .topbar-inner { width: min(1240px, calc(100% - 48px)); height: 100%; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .brand { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+    .brand-mark { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 13px; background: var(--lime); color: var(--forest-deep); }
+    .brand-name { font-size: 17px; font-weight: 800; letter-spacing: .08em; line-height: 1.1; }
+    .brand-caption { margin-top: 4px; color: #b7c9c2; font-size: 10px; font-weight: 650; letter-spacing: .14em; }
+    .topbar-meta { display: flex; align-items: center; gap: 18px; color: #d6e2dd; font-size: 13px; }
+    .server-state { display: inline-flex; align-items: center; gap: 8px; }
+    .server-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 4px rgba(212, 243, 106, .13); }
+    .topbar-divider { width: 1px; height: 24px; background: rgba(255,255,255,.18); }
+    .page { width: min(1240px, calc(100% - 48px)); margin: 34px auto 56px; }
+    .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+    .eyebrow { margin: 0 0 8px; color: #527166; font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(25px, 3vw, 34px); letter-spacing: -.035em; line-height: 1.2; }
+    .page-description { max-width: 690px; margin: 9px 0 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
+    .area-pill { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 9px; padding: 10px 14px; border: 1px solid #dce5dc; border-radius: 999px; background: rgba(255,255,255,.72); color: #486158; font-size: 12px; font-weight: 700; }
+    .area-pill svg { color: #59806e; }
+    .dashboard { display: grid; grid-template-columns: minmax(0, 1.58fr) minmax(320px, .82fr); gap: 20px; align-items: start; }
+    .panel { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); }
+    .workspace { padding: 22px; }
+    .panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+    .panel-title { margin: 0; font-size: 17px; font-weight: 750; letter-spacing: -.02em; }
+    .panel-subtitle { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .live-badge { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 999px; background: #f1f5f1; color: #61716a; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .live-badge.is-live { background: #fff1ed; color: #ac4940; }
+    .live-pulse { width: 7px; height: 7px; border-radius: 50%; background: #a7b2ad; }
+    .is-live .live-pulse { background: #d95549; box-shadow: 0 0 0 4px rgba(217,85,73,.12); }
+    .preview-stage { position: relative; display: grid; width: 100%; min-height: 310px; aspect-ratio: 16 / 10; overflow: hidden; place-items: center; border: 1px solid #dfe7e1; border-radius: 15px; background: #edf2ed; }
+    .preview-stage.drag-over { outline: 3px solid #83b477; outline-offset: 2px; background: #e7f1e5; }
+    .preview-stage > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .preview-stage > video, .preview-stage > canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    .preview-stage > canvas { pointer-events: none; }
+    .empty-state { display: grid; justify-items: center; padding: 28px; text-align: center; }
+    .empty-icon { width: 60px; height: 60px; display: grid; place-items: center; border: 1px solid #dce6dc; border-radius: 19px; background: #fff; color: #477663; box-shadow: 0 6px 18px rgba(25,44,41,.06); }
+    .empty-title { margin: 16px 0 5px; font-size: 15px; font-weight: 750; }
+    .empty-copy { max-width: 330px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .drop-hint { margin-top: 15px; padding: 8px 12px; border: 1px dashed #bac9bc; border-radius: 9px; color: #537262; font-size: 11px; font-weight: 650; }
+    .empty-state.dragging { background: #e8f3e8; box-shadow: inset 0 0 0 3px #7eb36c; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 15px; }
+    .button { min-height: 41px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; border: 1px solid transparent; border-radius: 10px; cursor: pointer; font-size: 12px; font-weight: 750; transition: background .16s ease, transform .16s ease, border-color .16s ease; }
+    .button:hover:not(:disabled) { transform: translateY(-1px); }
+    .button:disabled { opacity: .48; cursor: not-allowed; }
+    .button-primary { background: var(--forest); color: #fff; }
+    .button-primary:hover:not(:disabled) { background: #204f46; }
+    .button-secondary { border-color: #d9e3da; background: #fff; color: #38594e; }
+    .button-secondary:hover:not(:disabled) { background: #f5f8f4; border-color: #bdcec0; }
+    .button-camera { background: var(--lime); color: #263c22; }
+    .button-camera:hover:not(:disabled) { background: #c6ec52; }
+    .button-quiet { background: transparent; color: #64736c; }
+    .file-input { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; clip-path: inset(50%); }
+    .file-button { cursor: pointer; }
+    .file-info { min-width: 0; flex: 1 1 160px; color: var(--muted); font-size: 11px; }
+    .file-info strong { display: block; overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .file-info span { display: block; margin-top: 2px; }
+    .confidence { display: flex; flex: 1 1 220px; align-items: center; gap: 9px; padding: 0 3px; color: #596a63; font-size: 11px; }
+    .confidence input { min-width: 85px; flex: 1; accent-color: #4e7b51; }
+    .confidence-value { min-width: 35px; color: var(--ink); font-weight: 750; text-align: right; }
+    .feedback { min-height: 25px; display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .feedback-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #99a8a0; }
+    .feedback[data-state="loading"] .feedback-dot { background: #c28a25; animation: pulse 1s infinite; }
+    .feedback[data-state="error"] { color: var(--red); }
+    .feedback[data-state="error"] .feedback-dot { background: var(--red); }
+    @keyframes pulse { 50% { opacity: .35; } }
+    .sidebar { display: grid; gap: 16px; }
+    .verdict { position: relative; overflow: hidden; padding: 21px; border: 0; background: var(--forest); color: #f8fbf7; }
+    .verdict::after { position: absolute; top: -60px; right: -45px; width: 170px; height: 170px; border: 1px solid rgba(218,241,191,.12); border-radius: 50%; box-shadow: 0 0 0 22px rgba(218,241,191,.035), 0 0 0 46px rgba(218,241,191,.025); content: ""; pointer-events: none; }
+    .verdict-top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .verdict-label { color: #c7d9ce; font-size: 11px; font-weight: 700; letter-spacing: .03em; }
+    .verdict-icon { width: 37px; height: 37px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.16); border-radius: 12px; background: rgba(255,255,255,.08); color: var(--lime); }
+    .verdict-state { position: relative; z-index: 1; margin: 14px 0 6px; font-size: 23px; font-weight: 800; letter-spacing: -.03em; line-height: 1.25; }
+    .verdict-caption { position: relative; z-index: 1; margin: 0; color: #c7d9ce; font-size: 12px; line-height: 1.6; }
+    .verdict[data-status="allowed"] .verdict-icon { color: var(--lime); }
+    .verdict[data-status="denied"] .verdict-icon { color: #ffaaa3; }
+    .verdict[data-status="review"] .verdict-icon { color: #ffd27c; }
+    .reason-list { position: relative; z-index: 1; display: grid; gap: 6px; margin: 13px 0 0; padding: 0; color: #e1ece5; font-size: 11px; list-style: none; }
+    .reason-list li { display: flex; gap: 7px; line-height: 1.5; }
+    .reason-list li::before { color: var(--lime); content: "•"; }
+    .metrics { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+    .metric { padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); box-shadow: var(--shadow); }
+    .metric-head { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 650; }
+    .metric-mark { width: 8px; height: 8px; border-radius: 50%; background: #62a576; }
+    .metric-mark.denied { background: #d96e62; }
+    .metric-value { display: block; margin-top: 8px; font-size: 26px; font-weight: 800; letter-spacing: -.04em; }
+    .policy { padding: 19px; }
+    .policy .panel-heading { margin-bottom: 14px; }
+    .policy-location { margin: 0; font-size: 14px; font-weight: 750; line-height: 1.45; }
+    .policy-id { margin-top: 4px; color: var(--muted-soft); font-size: 10px; }
+    .policy-divider { height: 1px; margin: 14px 0; background: var(--line); }
+    .policy-caption { margin: 0 0 8px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+    .color-list { display: flex; flex-wrap: wrap; gap: 7px; }
+    .color-chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 9px; border: 1px solid #e4eae4; border-radius: 8px; background: #fafcf9; color: #40544b; font-size: 11px; font-weight: 650; }
+    .color-swatch { width: 9px; height: 9px; border: 1px solid rgba(0,0,0,.12); border-radius: 50%; background: var(--swatch); }
+    .policy-conditions { display: grid; gap: 9px; margin: 0; padding: 0; color: #4e6258; font-size: 11px; list-style: none; }
+    .policy-conditions li { display: flex; gap: 8px; line-height: 1.45; }
+    .policy-conditions li::before { color: #579167; content: "✓"; font-weight: 800; }
+    .policy-note { margin: 14px 0 0; padding: 10px 11px; border-radius: 9px; background: #f5f7ef; color: #63705a; font-size: 10px; line-height: 1.55; }
+    .confidence-policy { display: flex; justify-content: space-between; gap: 12px; margin-top: 13px; color: var(--muted); font-size: 11px; }
+    .confidence-policy strong { color: var(--ink); }
+    .footer-note { margin: 17px 2px 0; color: #87948e; font-size: 10px; line-height: 1.6; }
+    [hidden] { display: none !important; }
+    @media (max-width: 920px) {
+      .dashboard { grid-template-columns: minmax(0,1fr); }
+      .sidebar { grid-template-columns: repeat(2, minmax(0,1fr)); align-items: start; }
+      .verdict { grid-column: 1 / -1; }
+    }
+    @media (max-width: 620px) {
+      .topbar { height: 66px; }
+      .topbar-inner, .page { width: min(100% - 28px, 520px); }
+      .brand-mark { width: 36px; height: 36px; }
+      .topbar-meta { gap: 9px; font-size: 10px; }
+      .topbar-divider { height: 19px; }
+      .page { margin-top: 24px; }
+      .page-heading { display: block; margin-bottom: 17px; }
+      .area-pill { margin-top: 13px; }
+      .dashboard { gap: 14px; }
+      .workspace { padding: 15px; }
+      .panel { border-radius: 16px; }
+      .preview-stage { min-height: 220px; aspect-ratio: 4 / 3; }
+      .toolbar { gap: 8px; }
+      .button { min-height: 40px; padding: 0 11px; font-size: 11px; }
+      .file-info { order: 2; flex-basis: 100%; padding: 2px 3px; }
+      .confidence { order: 3; flex-basis: 100%; }
+      #analyzeButton { margin-left: auto; }
+      .sidebar { grid-template-columns: minmax(0,1fr); gap: 12px; }
+      .verdict { grid-column: auto; }
+      .metrics { order: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h2>ระบบตรวจจับหมวกนิรภัยพร้อมติดตามรายบุคคล (ByteTrack)</h2>
-    <div class="badges">
-      <span class="badge safe">สวมหมวกถูกต้อง (Safe): <span id="safeCount">0</span></span>
-      <span class="badge violation">ฝ่าฝืน/ไม่สวมหมวกเซฟตี้ (Alert): <span id="violationCount">0</span></span>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#" aria-label="Heltect หน้าหลัก">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 3.2 4.5 6v5.7c0 4.4 3 7.6 7.5 9.2 4.5-1.6 7.5-4.8 7.5-9.2V6L12 3.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m8.5 12.1 2.2 2.2 4.9-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span><span class="brand-name">HELTect</span><span class="brand-caption">SAFETY VISION</span></span>
+      </a>
+      <div class="topbar-meta">
+        <span class="server-state"><span class="server-dot" id="serverDot"></span><span id="serverLabel">กำลังเชื่อมต่อ</span></span>
+        <span class="topbar-divider" aria-hidden="true"></span>
+        <span>ระบบตรวจสอบความปลอดภัย</span>
+      </div>
     </div>
-    <div class="stage">
-      <video id="video" autoplay playsinline muted></video>
-      <canvas id="canvas"></canvas>
+  </header>
+
+  <main class="page">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">Workplace safety · Helmet check</p>
+        <h1>ตรวจสอบหมวกนิรภัย</h1>
+        <p class="page-description">ตรวจภาพหรือเปิดกล้องเพื่อประเมินการสวมหมวกและเงื่อนไขสีของพื้นที่ได้จากหน้าเดียว</p>
+      </div>
+      <div class="area-pill" id="areaPill">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
+        <span>Warehouse A · Entrance Gate</span>
+      </div>
     </div>
-    <div class="controls">
-      <button onclick="startCamera()">เปิดกล้องเว็บแคม</button>
-      <button class="stop" onclick="stopCamera()">หยุดกล้อง</button>
-      <label>ความมั่นใจขั้นต่ำ: <span id="confLabel">45%</span>
-        <input id="confSlider" type="range" min="10" max="95" value="45" oninput="document.getElementById('confLabel').innerText = this.value + '%'">
-      </label>
+
+    <div class="dashboard">
+      <section class="panel workspace" aria-labelledby="workspaceTitle">
+        <div class="panel-heading">
+          <div>
+            <h2 class="panel-title" id="workspaceTitle">พื้นที่ตรวจสอบ</h2>
+            <p class="panel-subtitle">เลือกรูปภาพหนึ่งภาพ หรือเปิดกล้องเพื่อตรวจต่อเนื่อง</p>
+          </div>
+          <span class="live-badge" id="liveBadge"><span class="live-pulse"></span><span id="liveBadgeText">พร้อมเริ่ม</span></span>
+        </div>
+
+        <div class="preview-stage" id="previewStage">
+          <img id="preview" alt="ภาพตัวอย่างพร้อมกรอบผลตรวจจับ" hidden>
+          <video id="video" autoplay playsinline muted hidden></video>
+          <canvas id="canvas" hidden></canvas>
+          <div class="empty-state" id="emptyState">
+            <span class="empty-icon" aria-hidden="true">
+              <svg width="27" height="27" viewBox="0 0 24 24" fill="none"><rect x="3.2" y="4" width="17.6" height="16" rx="3" stroke="currentColor" stroke-width="1.7"/><circle cx="8.6" cy="9" r="1.6" stroke="currentColor" stroke-width="1.6"/><path d="m5.5 17 4.2-4.2 2.9 2.9 2.1-2.1 3.8 3.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <h3 class="empty-title">เริ่มตรวจสอบภาพ</h3>
+            <p class="empty-copy">ลากรูปภาพมาวาง หรือเลือกไฟล์จากอุปกรณ์ของคุณ</p>
+            <label class="button button-secondary file-button" for="imageFile" tabindex="0">เลือกไฟล์ภาพ</label>
+            <p class="drop-hint">รองรับ JPG, PNG, WebP · ขนาดไม่เกิน 10 MB</p>
+          </div>
+        </div>
+
+        <input class="file-input" id="imageFile" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" aria-label="เลือกรูปภาพสำหรับตรวจสอบ">
+
+        <div class="toolbar" aria-label="เครื่องมือวิเคราะห์">
+          <label class="button button-secondary file-button" id="changeImageLabel" for="imageFile">เลือกรูปภาพ</label>
+          <button class="button button-camera" id="startCameraButton" type="button" onclick="startCamera()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 8.2 20 5.5v13l-5.5-2.7V8.2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><rect x="3" y="6.5" width="11.5" height="11" rx="2.5" stroke="currentColor" stroke-width="1.7"/></svg>
+            เปิดกล้อง
+          </button>
+          <button class="button button-secondary" id="stopCameraButton" type="button" onclick="stopCamera()" disabled>หยุดกล้อง</button>
+          <div class="file-info" id="fileInfo" hidden><strong id="fileName"></strong><span id="fileSize"></span></div>
+          <button class="button button-quiet" id="clearFileButton" type="button" onclick="clearSelectedFile()" hidden>ล้างภาพ</button>
+          <div class="confidence">
+            <label for="confSlider">ความมั่นใจขั้นต่ำ</label>
+            <input id="confSlider" type="range" min="10" max="95" value="45">
+            <span class="confidence-value" id="confLabel">45%</span>
+          </div>
+          <button class="button button-primary" id="analyzeButton" type="button" onclick="analyzeImage()" disabled>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.2 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.8 7.5v6.6M7.5 10.8h6.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            ตรวจภาพ
+          </button>
+        </div>
+        <div class="feedback" id="status" data-state="idle" role="status" aria-live="polite"><span class="feedback-dot" aria-hidden="true"></span><span id="statusText">เลือกรูปภาพหรือเปิดกล้องเพื่อเริ่มต้น</span></div>
+      </section>
+
+      <aside class="sidebar" aria-label="ผลและข้อกำหนดพื้นที่">
+        <section class="panel verdict" id="verdict" data-status="review" aria-live="polite">
+          <div class="verdict-top">
+            <span class="verdict-label">ผลประเมินตามกฎพื้นที่</span>
+            <span class="verdict-icon" aria-hidden="true">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M12 3.2 4.5 6v5.7c0 4.4 3 7.6 7.5 9.2 4.5-1.6 7.5-4.8 7.5-9.2V6L12 3.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m8.5 12.1 2.2 2.2 4.9-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </div>
+          <p class="verdict-state" id="accessStatus">รอผลตรวจ</p>
+          <p class="verdict-caption" id="verdictCaption">ผลตรวจจะแสดงที่นี่เมื่อเริ่มวิเคราะห์ภาพ</p>
+          <ul class="reason-list" id="reasons" hidden></ul>
+        </section>
+
+        <div class="metrics" aria-label="สรุปจำนวนที่ตรวจพบ">
+          <div class="metric">
+            <div class="metric-head"><span class="metric-mark"></span>หมวกสีที่อนุญาต</div>
+            <strong class="metric-value" id="safeCount">0</strong>
+          </div>
+          <div class="metric">
+            <div class="metric-head"><span class="metric-mark denied"></span>ไม่ผ่านเงื่อนไข</div>
+            <strong class="metric-value" id="violationCount">0</strong>
+          </div>
+        </div>
+
+        <section class="panel policy" aria-labelledby="policyTitle">
+          <div class="panel-heading">
+            <div>
+              <h2 class="panel-title" id="policyTitle">กฎของพื้นที่</h2>
+              <p class="panel-subtitle">ข้อกำหนดที่ใช้ประเมินภาพนี้</p>
+            </div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color:#648674"><path d="M5 4.5h14v15H5z" stroke="currentColor" stroke-width="1.7"/><path d="M8 9h8M8 12.5h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </div>
+          <div id="policyDetails">
+            <p class="policy-location" id="policyLocation">กำลังโหลดพื้นที่…</p>
+            <div class="policy-id" id="policyId"></div>
+            <div class="policy-divider"></div>
+            <p class="policy-caption">สีหมวกที่อนุญาต</p>
+            <div class="color-list" id="allowedColors"></div>
+            <div class="confidence-policy"><span>เกณฑ์ความมั่นใจ</span><strong id="policyConfidence">—</strong></div>
+            <div class="policy-divider"></div>
+            <p class="policy-caption">เงื่อนไขเพิ่มเติม</p>
+            <ul class="policy-conditions" id="policyConditions"></ul>
+            <p class="policy-note" id="policyNote">ผลประเมินจากภาพ ไม่ได้ควบคุมประตูจริง</p>
+          </div>
+        </section>
+      </aside>
     </div>
-    <p id="status" class="status">กดปุ่ม "เปิดกล้องเว็บแคม" เพื่อเริ่มต้นใช้งาน</p>
-  </div>
+    <p class="footer-note">ระบบช่วยประเมินจากภาพเพื่อประกอบการตรวจสอบ สีที่อนุญาตเป็นค่าตั้งต้นตัวอย่างและควรกำหนดตามระเบียบของหน้างาน</p>
+  </main>
 
   <script>
+    const fileInput = document.getElementById('imageFile');
+    const preview = document.getElementById('preview');
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const statusEl = document.getElementById('status');
-    let stream = null;
-    let timer = null;
-    let busy = false;
+    const context = canvas.getContext('2d');
+    const emptyState = document.getElementById('emptyState');
+    const previewStage = document.getElementById('previewStage');
+    const analyzeButton = document.getElementById('analyzeButton');
+    const startCameraButton = document.getElementById('startCameraButton');
+    const stopCameraButton = document.getElementById('stopCameraButton');
+    const clearFileButton = document.getElementById('clearFileButton');
+    const fileInfo = document.getElementById('fileInfo');
+    const status = document.getElementById('status');
+    const statusText = document.getElementById('statusText');
+    const liveBadge = document.getElementById('liveBadge');
+    const liveBadgeText = document.getElementById('liveBadgeText');
+    const colorNames = { blue: 'น้ำเงิน', white: 'ขาว', yellow: 'เหลือง', red: 'แดง', other: 'ไม่ทราบสี' };
+    const colorSwatches = { blue: '#3973b9', white: '#fff', yellow: '#f4ca42', red: '#d75d50', other: '#98a19e' };
+    const conditionNames = {
+      helmet_required: 'ต้องสวมหมวกนิรภัย',
+      allowed_colors_only: 'อนุญาตเฉพาะสีหมวกที่ระบุ',
+      violation_classes_blocked: 'ไม่สวมหมวกหรือหมวกผิดประเภทให้ปฏิเสธ',
+      unknown_color_requires_review: 'สีที่จำแนกไม่ได้ให้ตรวจสอบเพิ่มเติม',
+      no_helmet_requires_review: 'ไม่พบหมวกให้ตรวจสอบเพิ่มเติม',
+      person_helmet_match_required: 'ต้องพบหมวกบริเวณศีรษะของแต่ละบุคคล'
+    };
+    let selectedFile = null;
+    let previewObjectUrl = null;
+    let cameraStream = null;
+    let cameraTimer = null;
+    let cameraBusy = false;
+
+    function setMessage(message, state = 'idle') {
+      statusText.textContent = message;
+      status.dataset.state = state;
+    }
+
+    function setLiveState(isLive, label) {
+      liveBadge.classList.toggle('is-live', isLive);
+      liveBadgeText.textContent = label;
+    }
+
+    function releasePreviewUrl() {
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      previewObjectUrl = null;
+    }
+
+    function clearSelectedFile() {
+      selectedFile = null;
+      fileInput.value = '';
+      releasePreviewUrl();
+      preview.hidden = true;
+      preview.removeAttribute('src');
+      fileInfo.hidden = true;
+      clearFileButton.hidden = true;
+      emptyState.hidden = Boolean(cameraStream);
+      analyzeButton.disabled = true;
+      document.getElementById('fileName').textContent = '';
+      document.getElementById('fileSize').textContent = '';
+      resetSummary();
+      if (!cameraStream) setMessage('เลือกรูปภาพหรือเปิดกล้องเพื่อเริ่มต้น');
+    }
+
+    function resetSummary() {
+      document.getElementById('safeCount').textContent = '0';
+      document.getElementById('violationCount').textContent = '0';
+      document.getElementById('accessStatus').textContent = 'รอผลตรวจ';
+      document.getElementById('verdictCaption').textContent = 'ผลตรวจจะแสดงที่นี่เมื่อเริ่มวิเคราะห์ภาพ';
+      document.getElementById('verdict').dataset.status = 'review';
+      const reasons = document.getElementById('reasons');
+      reasons.innerHTML = '';
+      reasons.hidden = true;
+    }
+
+    function displayFile(file) {
+      stopCamera(false);
+      if (!file) return clearSelectedFile();
+      if (!file.type.startsWith('image/')) {
+        clearSelectedFile();
+        return setMessage('ไฟล์นี้ไม่ใช่รูปภาพ กรุณาเลือก JPG, PNG หรือ WebP', 'error');
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        clearSelectedFile();
+        return setMessage('รูปภาพมีขนาดเกิน 10 MB กรุณาเลือกไฟล์ที่เล็กกว่านี้', 'error');
+      }
+
+      selectedFile = file;
+      releasePreviewUrl();
+      previewObjectUrl = URL.createObjectURL(file);
+      preview.src = previewObjectUrl;
+      preview.hidden = false;
+      video.hidden = true;
+      canvas.hidden = true;
+      emptyState.hidden = true;
+      fileInfo.hidden = false;
+      clearFileButton.hidden = false;
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileSize').textContent = `${formatBytes(file.size)} · พร้อมตรวจภาพ`;
+      document.getElementById('changeImageLabel').textContent = 'เปลี่ยนรูป';
+      analyzeButton.disabled = false;
+      resetSummary();
+      setLiveState(false, 'พร้อมตรวจ');
+      setMessage('รูปภาพพร้อมแล้ว กด “ตรวจภาพ” เพื่อดูผลประเมิน', 'idle');
+    }
+
+    function formatBytes(bytes) {
+      return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    fileInput.addEventListener('change', () => displayFile(fileInput.files?.[0] || null));
+    document.getElementById('confSlider').addEventListener('input', event => {
+      document.getElementById('confLabel').textContent = `${event.target.value}%`;
+    });
+
+    previewStage.addEventListener('dragover', event => {
+      event.preventDefault();
+      previewStage.classList.add('drag-over');
+    });
+    previewStage.addEventListener('dragleave', event => {
+      if (!previewStage.contains(event.relatedTarget)) previewStage.classList.remove('drag-over');
+    });
+    previewStage.addEventListener('drop', event => {
+      event.preventDefault();
+      previewStage.classList.remove('drag-over');
+      const file = event.dataTransfer?.files?.[0];
+      if (file) displayFile(file);
+    });
+
+    previewStage.addEventListener('dragover', event => {
+      event.preventDefault();
+      emptyState.classList.add('dragging');
+    });
+    previewStage.addEventListener('dragleave', event => {
+      if (!previewStage.contains(event.relatedTarget)) emptyState.classList.remove('dragging');
+    });
+    previewStage.addEventListener('drop', event => {
+      event.preventDefault();
+      emptyState.classList.remove('dragging');
+      const file = event.dataTransfer?.files?.[0];
+      if (file) displayFile(file);
+    });
 
     async function startCamera() {
-      stopCamera();
+      stopCamera(false);
+      selectedFile = null;
+      fileInput.value = '';
+      releasePreviewUrl();
+      preview.hidden = true;
+      fileInfo.hidden = true;
+      clearFileButton.hidden = true;
+      document.getElementById('fileName').textContent = '';
+      document.getElementById('fileSize').textContent = '';
+      analyzeButton.disabled = true;
+      resetSummary();
+      setMessage('กำลังขอสิทธิ์ใช้งานกล้อง…', 'loading');
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
-        video.srcObject = stream;
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error('เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง');
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+        video.srcObject = cameraStream;
         await video.play();
         canvas.width = video.videoWidth || 640;
         canvas.height = video.videoHeight || 480;
-        statusEl.innerText = 'เปิดกล้องสำเร็จ กำลังติดตามวัตถุด้วย ByteTrack...';
-        timer = setInterval(captureAndDetect, 250);
-      } catch (err) {
-        statusEl.innerText = 'ไม่สามารถเปิดกล้องได้: ' + err.message;
+        video.hidden = false;
+        canvas.hidden = false;
+        emptyState.hidden = true;
+        startCameraButton.disabled = true;
+        stopCameraButton.disabled = false;
+        setLiveState(true, 'กล้องทำงาน');
+        setMessage('กำลังตรวจจับต่อเนื่อง · แจ้งเตือนเมื่อพบเงื่อนไขผิดซ้ำตามเกณฑ์', 'loading');
+        cameraTimer = setInterval(captureAndDetect, 500);
+      } catch (error) {
+        stopCamera(false);
+        setLiveState(false, 'พร้อมตรวจ');
+        setMessage(`เปิดกล้องไม่สำเร็จ: ${error.message}`, 'error');
       }
     }
 
-    function stopCamera() {
-      if (timer) clearInterval(timer);
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      statusEl.innerText = 'หยุดการทำงานของกล้องแล้ว';
+    function stopCamera(updateStatus = true) {
+      if (cameraTimer) clearInterval(cameraTimer);
+      cameraTimer = null;
+      if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+      video.pause();
+      video.srcObject = null;
+      video.hidden = true;
+      canvas.hidden = true;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      startCameraButton.disabled = false;
+      stopCameraButton.disabled = true;
+      if (!selectedFile) emptyState.hidden = false;
+      setLiveState(false, selectedFile ? 'พร้อมตรวจ' : 'พร้อมเริ่ม');
+      if (updateStatus) setMessage('หยุดกล้องแล้ว');
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+    }
+
+    async function loadPolicy() {
+      try {
+        const response = await fetch('/api/access-policy');
+        if (!response.ok) throw new Error('โหลดข้อกำหนดไม่สำเร็จ');
+        const data = await response.json();
+        const policy = data.policy || {};
+        const location = data.location || {};
+        const locationLabel = [location.building, location.floor, location.zone].filter(Boolean).join(' · ') || policy.area_name || 'พื้นที่';
+        document.getElementById('policyLocation').textContent = locationLabel;
+        document.getElementById('policyId').textContent = `${policy.policy_id || 'นโยบายพื้นที่'} · ${policy.location_id || location.location_id || ''}`;
+        document.querySelector('#areaPill span').textContent = location.zone || policy.area_name || 'พื้นที่ตรวจสอบ';
+        document.getElementById('policyConfidence').textContent = `${Math.round((policy.minimum_confidence || .45) * 100)}%`;
+        document.getElementById('policyNote').textContent = policy.note || 'ระบบประเมินจากภาพ ไม่ได้ควบคุมประตูจริง';
+
+        const colors = document.getElementById('allowedColors');
+        colors.innerHTML = (policy.allowed_helmet_colors || []).map(color => {
+          const label = colorNames[color] || color;
+          const swatch = colorSwatches[color] || colorSwatches.other;
+          return `<span class="color-chip"><span class="color-swatch" style="--swatch:${swatch}"></span>${escapeHtml(label)}</span>`;
+        }).join('') || '<span class="policy-id">ยังไม่ได้กำหนดสีที่อนุญาต</span>';
+
+        const conditions = document.getElementById('policyConditions');
+        conditions.innerHTML = (policy.conditions || []).map(condition => `<li>${escapeHtml(conditionNames[condition] || condition)}</li>`).join('');
+      } catch (error) {
+        document.getElementById('policyLocation').textContent = 'โหลดข้อกำหนดพื้นที่ไม่ได้';
+        setMessage(`เชื่อมต่อข้อมูลพื้นที่ไม่สำเร็จ: ${error.message}`, 'error');
+      }
+    }
+
+    async function loadServerState() {
+      try {
+        const response = await fetch('/health');
+        if (!response.ok) throw new Error('offline');
+        document.getElementById('serverLabel').textContent = 'ระบบพร้อมใช้งาน';
+      } catch {
+        document.getElementById('serverDot').style.background = '#ef8a7e';
+        document.getElementById('serverLabel').textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้';
+      }
+    }
+
+    function updateResults(data) {
+      const access = data.access_evaluation || {};
+      const allowed = (data.predictions || []).filter(item => item.access_status === 'allowed').length;
+      const denied = (data.predictions || []).filter(item => item.access_status === 'denied').length;
+      document.getElementById('safeCount').textContent = allowed;
+      document.getElementById('violationCount').textContent = denied;
+      const verdict = document.getElementById('verdict');
+      verdict.dataset.status = access.status || 'review';
+      document.getElementById('accessStatus').textContent = access.label || 'ต้องตรวจสอบเพิ่มเติม';
+      document.getElementById('verdictCaption').textContent = access.status === 'allowed'
+        ? 'สีหมวกและเงื่อนไขที่ตรวจพบตรงตามกฎของพื้นที่'
+        : access.status === 'denied'
+          ? 'พบเงื่อนไขที่ไม่อนุญาตในภาพนี้'
+          : 'ภาพยังมีข้อมูลไม่พอสำหรับยืนยันตามกฎพื้นที่';
+      const reasons = document.getElementById('reasons');
+      reasons.innerHTML = (access.reasons || []).map(reason => `<li>${escapeHtml(reason)}</li>`).join('');
+      reasons.hidden = !access.reasons?.length;
+      return { allowed, denied };
+    }
+
+    function drawCameraDetections(predictions) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      predictions.forEach(prediction => {
+        const [x1, y1, x2, y2] = prediction.bbox_xyxy || [];
+        if (![x1, y1, x2, y2].every(Number.isFinite)) return;
+        const color = prediction.access_status === 'allowed' ? '#35bd79'
+          : prediction.access_status === 'denied' ? '#f0645d' : '#f0bd55';
+        context.strokeStyle = color;
+        context.lineWidth = 3;
+        context.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        const label = `${prediction.class} ${(Number(prediction.confidence || 0) * 100).toFixed(0)}%`;
+        context.font = 'bold 13px sans-serif';
+        context.fillStyle = color;
+        context.fillRect(x1, Math.max(0, y1 - 24), context.measureText(label).width + 12, 24);
+        context.fillStyle = '#102e2a';
+        context.fillText(label, x1 + 6, Math.max(16, y1 - 6));
+      });
+    }
+
+    async function submitImage(blob, filename, mode) {
+      const form = new FormData();
+      form.append('file', blob, filename);
+      const confidence = (Number(document.getElementById('confSlider').value) / 100).toFixed(2);
+      const response = await fetch(`/predict?conf=${confidence}&mode=${mode}`, { method: 'POST', body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'ไม่สามารถวิเคราะห์ภาพได้');
+      const counts = updateResults(data);
+      if (mode === 'camera') {
+        drawCameraDetections(data.predictions || []);
+      } else {
+        releasePreviewUrl();
+        preview.src = `data:image/jpeg;base64,${data.annotated_image_base64}`;
+        preview.hidden = false;
+        emptyState.hidden = true;
+      }
+      setMessage(`ตรวจพบ ${data.count || 0} รายการ · ผ่าน ${counts.allowed} · ไม่ผ่าน ${counts.denied} · แจ้งเตือนใหม่ ${data.new_alerts_count || 0}`, mode === 'camera' ? 'loading' : 'success');
+      return data;
+    }
+
+    async function analyzeImage() {
+      if (!selectedFile || analyzeButton.disabled) return;
+      analyzeButton.disabled = true;
+      setMessage('กำลังประมวลผลภาพ…', 'loading');
+      try {
+        await submitImage(selectedFile, selectedFile.name, 'image');
+      } catch (error) {
+        setMessage(`วิเคราะห์ไม่สำเร็จ: ${error.message}`, 'error');
+      } finally {
+        analyzeButton.disabled = !selectedFile;
+      }
     }
 
     async function captureAndDetect() {
-      if (busy || !stream) return;
-      busy = true;
+      if (cameraBusy || !cameraStream || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      cameraBusy = true;
       try {
-        const offscreen = document.createElement('canvas');
-        offscreen.width = canvas.width;
-        offscreen.height = canvas.height;
-        offscreen.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const blob = await new Promise(r => offscreen.toBlob(r, 'image/jpeg', 0.8));
-        const form = new FormData();
-        form.append('file', blob, 'frame.jpg');
-
-        const conf = (Number(document.getElementById('confSlider').value) / 100).toFixed(2);
-        const res = await fetch(`/predict?conf=${conf}`, { method: 'POST', body: form });
-        const data = await res.json();
-
-        console.log(data)
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        let safe = 0;
-        let violation = 0;
-
-        (data.predictions || []).forEach(p => {
-          const [x1, y1, x2, y2] = p.bbox_xyxy;
-          let color = '#38bdf8'; // สีฟ้าสำหรับ person
-          if (p.category === 'violation') {
-            color = '#ef4444';   // สีแดงสำหรับ not_helmet และ non_industrial_headwear
-            violation++;
-          } else if (p.category === 'safe') {
-            color = '#22c55e';   // สีเขียวสำหรับ helmet_*
-            safe++;
-          }
-
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 3;
-          ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-
-          const idTag = p.track_id !== null && p.track_id !== undefined ? `#${p.track_id} ` : '';
-          const text = `${idTag}${p.class} ${(p.confidence * 100).toFixed(0)}%`;
-          ctx.font = 'bold 13px sans-serif';
-          ctx.fillStyle = color;
-          ctx.fillRect(x1, Math.max(0, y1 - 24), ctx.measureText(text).width + 14, 24);
-          ctx.fillStyle = '#020617';
-          ctx.fillText(text, x1 + 6, Math.max(16, y1 - 6));
-        });
-
-        document.getElementById('safeCount').innerText = safe;
-        document.getElementById('violationCount').innerText = violation;
-        statusEl.innerText = `ตรวจพบทั้งหมด ${data.count} กรอบ (สวมหมวก: ${safe} | ฝ่าฝืน: ${violation})`;
-      } catch (e) {
-        statusEl.innerText = 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์: ' + e.message;
+        const frame = document.createElement('canvas');
+        frame.width = video.videoWidth || canvas.width;
+        frame.height = video.videoHeight || canvas.height;
+        frame.getContext('2d').drawImage(video, 0, 0, frame.width, frame.height);
+        const blob = await new Promise(resolve => frame.toBlob(resolve, 'image/jpeg', .82));
+        if (!blob) throw new Error('อ่านภาพจากกล้องไม่ได้');
+        await submitImage(blob, 'camera-frame.jpg', 'camera');
+      } catch (error) {
+        setMessage(`วิเคราะห์ภาพจากกล้องไม่สำเร็จ: ${error.message}`, 'error');
       } finally {
-        busy = false;
+        cameraBusy = false;
       }
     }
+
+    async function loadServerStateAndPolicy() {
+      await Promise.all([loadServerState(), loadPolicy()]);
+    }
+    loadServerStateAndPolicy();
   </script>
 </body>
 </html>

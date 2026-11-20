@@ -21,6 +21,10 @@ VIOLATION_CLASSES = {
 THAI_CLASS_NAMES = {
     "not_helmet": "ไม่สวมหมวกนิรภัย",
     "non_industrial_headwear": "สวมหมวกผิดประเภท/ไม่ใช่หมวกเซฟตี้",
+    "helmet_blue": "หมวกสีน้ำเงินไม่อยู่ในรายการที่พื้นที่อนุญาต",
+    "helmet_white": "หมวกสีขาวไม่อยู่ในรายการที่พื้นที่อนุญาต",
+    "helmet_yellow": "หมวกสีเหลืองไม่อยู่ในรายการที่พื้นที่อนุญาต",
+    "helmet_red": "หมวกสีแดงไม่อยู่ในรายการที่พื้นที่อนุญาต",
 }
 
 
@@ -178,7 +182,11 @@ class AlertService:
 
         return {
             "event_id": event_id,
-            "event_type": "helmet_violation",
+            "event_type": (
+                "access_policy_violation"
+                if prediction.get("access_status") == "denied"
+                else "helmet_violation"
+            ),
             "occurred_at": datetime.now(timezone.utc).isoformat(),
 
             "track_id": track_id,
@@ -250,11 +258,7 @@ class AlertService:
     # Main Alert Processing
     # ------------------------------------------
 
-    def process(self, predictions, image_base64=None):
-        with self._lock:
-            return self._process(predictions, image_base64)
-
-    def _process(self, predictions, image_base64=None):
+    def process(self, predictions, image_base64=None, immediate=False):
         now = time.monotonic()
 
         self._cleanup_old_ids(now)
@@ -270,7 +274,8 @@ class AlertService:
         for prediction in predictions:
             class_name = prediction.get("class")
 
-            if class_name not in VIOLATION_CLASSES:
+            is_access_denial = prediction.get("access_status") == "denied"
+            if class_name not in VIOLATION_CLASSES and not is_access_denial:
                 continue
 
             track_id = prediction.get("track_id")
@@ -309,12 +314,13 @@ class AlertService:
             if track_id in self.notified_ids or track_id in self.pending_ids:
                 continue
 
+            confirmation_target = 1 if immediate else self.confirm_frames
             self.violation_streak[track_id] = min(
                 self.violation_streak.get(track_id, 0) + 1,
-                self.confirm_frames,
+                confirmation_target,
             )
 
-            if self.violation_streak[track_id] < self.confirm_frames:
+            if self.violation_streak[track_id] < confirmation_target:
                 continue
 
             # ป้องกันการ Retry ทุกเฟรม

@@ -19,8 +19,8 @@ BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = FastAPI(
-    title="Helmet Detector YOLO11x Web Camera",
-    description="Helmet Detector and LINE Notification System",
+    title="Helmet Detector · Image Upload",
+    description="Helmet detection and area access policy assessment",
     version="1.0.0",
 )
 
@@ -39,7 +39,7 @@ app.include_router(line_router)     # POST /line/webhook
 
 @app.get("/")
 async def index_page():
-    # หน้าเว็บกล้อง
+    # หน้าอัปโหลดและตรวจสอบรูปภาพ
     return FileResponse(FRONTEND_DIR / "index.html")
 
 
